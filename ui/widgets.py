@@ -11,12 +11,7 @@ from tkinter import ttk
 from typing import Callable, Optional
 
 from core.app_context import AppContext
-from core.capture import CAPTURE_HOTKEY
 from core.position import Position
-
-# "<space>" -> "SPACE", "<f9>" -> "F9" - derived once so the button text
-# can never drift out of sync with the actual bound key again.
-_CAPTURE_KEY_LABEL = CAPTURE_HOTKEY.strip("<>").upper()
 
 
 class PositionRow(ttk.Frame):
@@ -39,11 +34,16 @@ class PositionRow(ttk.Frame):
         self.ctx = ctx
         self.on_change = on_change
         self.position = initial
+        self._hotkey_listener = self._on_hotkey_settings_changed
 
         ttk.Label(self, text=label, width=label_width).pack(side="left")
         self.value_var = tk.StringVar(value=self._fmt(initial))
         ttk.Label(self, textvariable=self.value_var, width=value_width).pack(side="left", padx=4)
-        ttk.Button(self, text=f"Capture (hover + {_CAPTURE_KEY_LABEL})", command=self._start_capture).pack(side="left")
+        self.capture_btn = ttk.Button(self, command=self._start_capture)
+        self.capture_btn.pack(side="left")
+        self._refresh_capture_label()
+        self.ctx.hotkey_settings.subscribe(self._hotkey_listener)
+        self.bind("<Destroy>", self._on_destroy, add="+")
 
     def _fmt(self, pos: Optional[Position]) -> str:
         return f"({pos.x}, {pos.y})" if pos else "(chưa capture)"
@@ -56,6 +56,18 @@ class PositionRow(ttk.Frame):
                 self.on_change(pos)
 
         self.ctx.capture.begin_capture(on_captured)
+
+    def _refresh_capture_label(self) -> None:
+        hotkey = self.ctx.hotkey_settings.get("capture").upper()
+        self.capture_btn.config(text=f"Capture (hover + {hotkey})")
+
+    def _on_hotkey_settings_changed(self, _values: dict) -> None:
+        if self.winfo_exists():
+            self._refresh_capture_label()
+
+    def _on_destroy(self, event) -> None:
+        if event.widget is self:
+            self.ctx.hotkey_settings.unsubscribe(self._hotkey_listener)
 
     def set_position(self, pos: Optional[Position]) -> None:
         self.position = pos

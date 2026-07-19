@@ -21,11 +21,6 @@ from features.base_feature import BaseFeature
 from features.registry import register
 from ui.widgets import PositionRow
 
-START_HOTKEY = "<f6>"
-STOP_HOTKEY = "<f7>"
-PAUSE_HOTKEY = "<f10>"
-
-
 @register
 class AutoCraftFeature(BaseFeature):
     key = "auto_craft"
@@ -56,9 +51,11 @@ class AutoCraftWindow:
         self.ctx = ctx
         self.config = CraftConfig(targets=[CraftTarget(label="target")])
         self.engine: Optional[CraftEngine] = None
+        self._registered_hotkeys = {}
 
         self._build_ui()
         self._register_hotkeys()
+        self.ctx.hotkey_settings.subscribe(self._on_hotkey_settings_changed)
         self.win.protocol("WM_DELETE_WINDOW", self._on_close)
 
     # ------------------------------------------------------------- build --
@@ -108,9 +105,13 @@ class AutoCraftWindow:
 
         ctrl_frame = ttk.Frame(self.win)
         ctrl_frame.pack(fill="x", **pad)
-        ttk.Button(ctrl_frame, text="Start (F6)", command=self._start).pack(side="left")
-        ttk.Button(ctrl_frame, text="Pause (F10)", command=self._toggle_pause).pack(side="left", padx=4)
-        ttk.Button(ctrl_frame, text="Stop (F7)", command=self._stop).pack(side="left")
+        self.start_btn = ttk.Button(ctrl_frame, command=self._start)
+        self.start_btn.pack(side="left")
+        self.pause_btn = ttk.Button(ctrl_frame, command=self._toggle_pause)
+        self.pause_btn.pack(side="left", padx=4)
+        self.stop_btn = ttk.Button(ctrl_frame, command=self._stop)
+        self.stop_btn.pack(side="left")
+        self._refresh_hotkey_labels()
 
         self.status_var = tk.StringVar(
             value="Sẵn sàng. Đưa chuột vào góc màn hình bất kỳ lúc nào để dừng khẩn cấp (fail-safe)."
@@ -275,14 +276,37 @@ class AutoCraftWindow:
 
     # ------------------------------------------------------------ hotkeys --
     def _register_hotkeys(self) -> None:
-        self.ctx.hotkeys.register(START_HOTKEY, lambda: self.win.after(0, self._start))
-        self.ctx.hotkeys.register(STOP_HOTKEY, lambda: self.win.after(0, self._stop))
-        self.ctx.hotkeys.register(PAUSE_HOTKEY, lambda: self.win.after(0, self._toggle_pause))
+        settings = self.ctx.hotkey_settings
+        self._registered_hotkeys = {
+            "start": settings.get("start"),
+            "stop": settings.get("stop"),
+            "pause": settings.get("pause"),
+        }
+        self.ctx.hotkeys.register(
+            self._registered_hotkeys["start"], lambda: self.win.after(0, self._start)
+        )
+        self.ctx.hotkeys.register(
+            self._registered_hotkeys["stop"], lambda: self.win.after(0, self._stop)
+        )
+        self.ctx.hotkeys.register(
+            self._registered_hotkeys["pause"], lambda: self.win.after(0, self._toggle_pause)
+        )
 
     def _unregister_hotkeys(self) -> None:
-        self.ctx.hotkeys.unregister(START_HOTKEY)
-        self.ctx.hotkeys.unregister(STOP_HOTKEY)
-        self.ctx.hotkeys.unregister(PAUSE_HOTKEY)
+        for hotkey in self._registered_hotkeys.values():
+            self.ctx.hotkeys.unregister(hotkey)
+        self._registered_hotkeys = {}
+
+    def _on_hotkey_settings_changed(self, _values: dict) -> None:
+        self._unregister_hotkeys()
+        self._register_hotkeys()
+        self._refresh_hotkey_labels()
+
+    def _refresh_hotkey_labels(self) -> None:
+        settings = self.ctx.hotkey_settings
+        self.start_btn.config(text=f"Start ({settings.get('start').upper()})")
+        self.pause_btn.config(text=f"Pause ({settings.get('pause').upper()})")
+        self.stop_btn.config(text=f"Stop ({settings.get('stop').upper()})")
 
     # ------------------------------------------------------------ profile --
     def _save_profile(self) -> None:
@@ -342,6 +366,7 @@ class AutoCraftWindow:
         if self.engine:
             self.engine.stop()
             self.engine.wait_until_stopped(timeout=2.0)
+        self.ctx.hotkey_settings.unsubscribe(self._on_hotkey_settings_changed)
         self._unregister_hotkeys()
         AutoCraftFeature._open_window = None
         self.win.destroy()

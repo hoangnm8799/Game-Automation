@@ -11,6 +11,7 @@ import tkinter as tk
 
 from core.hotkeys import HotkeyManager
 from core.capture import CaptureController
+from core.hotkey_settings import HotkeySettings
 
 
 @dataclass
@@ -18,3 +19,4 @@ class AppContext:
     root: tk.Tk
     hotkeys: HotkeyManager
     capture: CaptureController
+    hotkey_settings: HotkeySettings

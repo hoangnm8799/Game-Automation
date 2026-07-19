@@ -15,16 +15,38 @@ from core.hotkeys import HotkeyManager
 from core.position import Position
 from core import input_actions
 
-CAPTURE_HOTKEY = "<space>"
+DEFAULT_CAPTURE_HOTKEY = "<space>"
 
 
 class CaptureController:
-    def __init__(self, root: tk.Tk, hotkeys: HotkeyManager):
+    def __init__(
+        self, root: tk.Tk, hotkeys: HotkeyManager, hotkey: str = DEFAULT_CAPTURE_HOTKEY
+    ):
         self._root = root
+        self._hotkeys = hotkeys
+        self._hotkey = hotkey
+        self._is_hotkey_bound = False
         self._queue: "queue.Queue[Position]" = queue.Queue()
         self._callback: Optional[Callable[[Position], None]] = None
-        hotkeys.register(CAPTURE_HOTKEY, self._on_hotkey)
+        self.set_hotkey(hotkey)
         self._poll()
+
+    @property
+    def hotkey(self) -> str:
+        return self._hotkey
+
+    def set_hotkey(self, hotkey: str) -> None:
+        if hotkey == self._hotkey and self._is_hotkey_bound:
+            return
+        self.unbind_hotkey()
+        self._hotkeys.register(hotkey, self._on_hotkey)
+        self._hotkey = hotkey
+        self._is_hotkey_bound = True
+
+    def unbind_hotkey(self) -> None:
+        if self._is_hotkey_bound:
+            self._hotkeys.unregister(self._hotkey)
+            self._is_hotkey_bound = False
 
     def begin_capture(self, callback: Callable[[Position], None]) -> None:
         """The next CAPTURE_HOTKEY press calls `callback(position)` exactly once."""

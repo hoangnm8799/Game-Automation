@@ -17,8 +17,10 @@ from core import updater
 from core.app_context import AppContext
 from core.capture import CaptureController
 from core.hotkeys import HotkeyManager
+from core.hotkey_settings import HotkeySettings
 from core.version import APP_VERSION
 from features.registry import all_features
+from ui.hotkey_settings import HotkeySettingsDialog
 
 
 class MainMenu(tk.Tk):
@@ -28,8 +30,15 @@ class MainMenu(tk.Tk):
         self.geometry("360x300")
 
         hotkeys = HotkeyManager()
-        capture = CaptureController(self, hotkeys)
-        self.ctx = AppContext(root=self, hotkeys=hotkeys, capture=capture)
+        hotkey_settings = HotkeySettings()
+        capture = CaptureController(self, hotkeys, hotkey_settings.get("capture"))
+        self.ctx = AppContext(
+            root=self,
+            hotkeys=hotkeys,
+            capture=capture,
+            hotkey_settings=hotkey_settings,
+        )
+        hotkey_settings.subscribe(self._on_hotkey_settings_changed)
 
         self._build_ui()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -53,6 +62,18 @@ class MainMenu(tk.Tk):
         ttk.Label(row, text=f"Bản {APP_VERSION}", foreground="gray").pack(side="left")
         self.update_btn = ttk.Button(row, text="Kiểm tra update", command=self._check_update)
         self.update_btn.pack(side="right")
+        ttk.Button(row, text="Cài đặt hotkey", command=self._open_hotkey_settings).pack(
+            side="right", padx=(0, 6)
+        )
+
+    def _open_hotkey_settings(self) -> None:
+        HotkeySettingsDialog(self, self.ctx.hotkey_settings)
+
+    def _on_hotkey_settings_changed(self, values: dict) -> None:
+        # Remove Capture first so an Auto Craft window can safely swap keys
+        # (for example Start=Space and Capture=F6) in its own callback.
+        self.ctx.capture.unbind_hotkey()
+        self.after_idle(self.ctx.capture.set_hotkey, values["capture"])
 
     def _open_feature(self, feature) -> None:
         """Hide the menu while the feature window is open, show it again
@@ -192,5 +213,6 @@ class MainMenu(tk.Tk):
             self.update_btn.config(state="normal", text="Kiểm tra update")
 
     def _on_close(self) -> None:
+        self.ctx.hotkey_settings.unsubscribe(self._on_hotkey_settings_changed)
         self.ctx.hotkeys.stop_all()
         self.destroy()

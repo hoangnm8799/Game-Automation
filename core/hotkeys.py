@@ -18,8 +18,14 @@ class HotkeyManager:
 
     def register(self, hotkey: str, callback: Callable) -> None:
         """hotkey uses pynput's GlobalHotKeys syntax, e.g. '<f6>'."""
+        self.validate(hotkey)
         self._bindings[hotkey] = callback
         self._restart_listener()
+
+    @staticmethod
+    def validate(hotkey: str) -> None:
+        """Raise ValueError if pynput cannot parse a hotkey expression."""
+        keyboard.HotKey.parse(hotkey)
 
     def unregister(self, hotkey: str) -> None:
         self._bindings.pop(hotkey, None)
