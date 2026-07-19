@@ -9,4 +9,4 @@ Format: plain "MAJOR.MINOR.PATCH" (no leading "v" - the GitHub release
 tag itself is "vMAJOR.MINOR.PATCH", updater.py strips the "v" to compare).
 """
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
