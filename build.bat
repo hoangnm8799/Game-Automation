@@ -7,9 +7,10 @@ set "APP_VERSION=%~1"
 if "%APP_VERSION%"=="" set "APP_VERSION=0.0.0-dev"
 > core\_build_version.py echo APP_VERSION = "%APP_VERSION%"
 
-pip install pyinstaller
+pip install -r requirements.txt pyinstaller
 
 pyinstaller --onefile --windowed --name AutoCraftTool ^
+  --collect-data certifi ^
   --hidden-import pynput.keyboard._win32 ^
   --hidden-import pynput.mouse._win32 ^
   main.py

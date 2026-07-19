@@ -14,14 +14,20 @@ import pyperclip
 
 from core.position import Position
 
-# Small pause after each simulated action so the OS/game has time to
-# register it before the next one fires. Bump these up if clicks/copies
-# feel unreliable in your game, lower them once you've confirmed it's stable.
-CLICK_DELAY = 0.08
-COPY_DELAY = 0.1
+# The click path is intentionally short, but the result check is strict:
+# after Ctrl+C we wait until fresh clipboard text arrives instead of using a
+# stale value or immediately assuming an empty result. This makes normal
+# crafts much faster without skipping a rule check.
+CLICK_DELAY = 0.03
+COPY_READY_TIMEOUT = 0.35
+COPY_POLL_INTERVAL = 0.01
 
 pyautogui.PAUSE = 0          # we manage our own delays explicitly below
 pyautogui.FAILSAFE = True    # slam the mouse into a screen corner to abort
+
+
+class ClipboardReadError(RuntimeError):
+    """The game did not put fresh item text on the clipboard in time."""
 
 
 def get_current_mouse_position() -> Position:
@@ -50,10 +56,17 @@ def apply_currency(currency_pos: Position, target_pos: Position) -> None:
 
 
 def copy_text_at(pos: Position) -> str:
-    """Hover a position and Ctrl+C it, returning whatever landed on the clipboard."""
+    """Return fresh copied text, never a stale value from a previous craft."""
     pyautogui.moveTo(pos.x, pos.y)
-    time.sleep(COPY_DELAY)
+    time.sleep(CLICK_DELAY)
     pyperclip.copy("")  # clear first so a stale value can't cause a false match
     pyautogui.hotkey("ctrl", "c")
-    time.sleep(COPY_DELAY)
-    return pyperclip.paste()
+    deadline = time.monotonic() + COPY_READY_TIMEOUT
+    while time.monotonic() < deadline:
+        text = pyperclip.paste()
+        if text:
+            return text
+        time.sleep(COPY_POLL_INTERVAL)
+    raise ClipboardReadError(
+        "Không đọc được text mới từ clipboard; craft đã dừng để tránh check sai."
+    )

@@ -1,3 +1,4 @@
+certifi
 pyautogui
 pyperclip
 pynput

@@ -39,6 +39,7 @@ jobs:
       - name: Build exe
         run: >
           pyinstaller --onefile --windowed --name AutoCraftTool
+          --collect-data certifi
           --hidden-import pynput.keyboard._win32
           --hidden-import pynput.mouse._win32
           main.py

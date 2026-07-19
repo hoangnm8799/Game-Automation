@@ -1,11 +1,4 @@
-"""
-ui/main_menu.py
-
-Main menu window - creates the shared AppContext (hotkeys + position
-capture) once, then reads features/registry.py so it never has to import
-feature classes by name. Add a feature module (with @register) and it
-shows up here automatically.
-"""
+"""Main application menu and shared global services."""
 
 import queue
 import threading
@@ -49,8 +42,7 @@ class MainMenu(tk.Tk):
             feature = feature_cls()
             frame = ttk.Frame(self)
             frame.pack(fill="x", padx=12, pady=4)
-            ttk.Button(frame, text=feature.display_name,
-                       command=lambda f=feature: self._open_feature(f)).pack(fill="x")
+            ttk.Button(frame, text=feature.display_name, command=lambda f=feature: self._open_feature(f)).pack(fill="x")
             if feature.description:
                 ttk.Label(frame, text=feature.description, foreground="gray").pack(anchor="w")
 
@@ -76,12 +68,10 @@ class MainMenu(tk.Tk):
         self.after_idle(self.ctx.capture.set_hotkey, values["capture"])
 
     def _open_feature(self, feature) -> None:
-        """Hide the menu while the feature window is open, show it again
-        once that window closes. Generic on purpose - works for any future
-        feature without that feature having to know the menu exists."""
+        """Hide the menu while a feature window is open."""
         win = feature.open(self.ctx)
         self.withdraw()
-        self.wait_window(win)  # blocks here only - hotkeys/timers keep running
+        self.wait_window(win)
         self.deiconify()
 
     def _check_update(self) -> None:
@@ -89,31 +79,22 @@ class MainMenu(tk.Tk):
         self.update_idletasks()
         try:
             info = updater.check_for_update()
-        except Exception as e:
-            messagebox.showerror("Lỗi", f"Không kiểm tra được update:\n{e}")
+        except Exception as error:
+            messagebox.showerror("Lỗi", f"Không kiểm tra được update:\n{error}")
             self.update_btn.config(state="normal", text="Kiểm tra update")
             return
 
         self.update_btn.config(state="normal", text="Kiểm tra update")
-
         if info is None:
             messagebox.showinfo("Update", "Bạn đang dùng bản mới nhất rồi.")
             return
 
-        msg = f"Có bản mới: {info.version}\n\n{info.notes}".strip()
-        if not messagebox.askyesno("Có bản cập nhật mới", msg + "\n\nCập nhật ngay?"):
-            return
-
-        self.update_btn.config(state="disabled", text="Đang tải bản mới...")
-        self.update_idletasks()
-        try:
+        message = f"Có bản mới: {info.version}\n\n{info.notes}".strip()
+        if messagebox.askyesno("Có bản cập nhật mới", message + "\n\nCập nhật ngay?"):
             self._download_update(info)
-        except Exception as e:
-            messagebox.showerror("Lỗi", f"Cập nhật thất bại:\n{e}")
-            self.update_btn.config(state="normal", text="Kiểm tra update")
 
     def _download_update(self, info: updater.UpdateInfo) -> None:
-        """Download in a worker so the progress window remains responsive."""
+        self.update_btn.config(state="disabled", text="Đang tải bản mới...")
         dialog = tk.Toplevel(self)
         dialog.title("Đang cập nhật")
         dialog.resizable(False, False)
@@ -191,16 +172,7 @@ class MainMenu(tk.Tk):
         except queue.Empty:
             pass
 
-        self.after(
-            75,
-            self._poll_update_events,
-            info,
-            dialog,
-            status,
-            progress,
-            events,
-            has_total,
-        )
+        self.after(75, self._poll_update_events, info, dialog, status, progress, events, has_total)
 
     def _install_update(
         self, info: updater.UpdateInfo, downloaded_exe: object, dialog: tk.Toplevel

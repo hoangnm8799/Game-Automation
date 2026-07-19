@@ -7,6 +7,8 @@ dist/
 *.spec
 
 # File tạm do core/updater.py tự tạo lúc tự cập nhật
+
+# File tạm tự tạo khi app đang tự cập nhật
 _update_*.exe
 _apply_update.bat
 
