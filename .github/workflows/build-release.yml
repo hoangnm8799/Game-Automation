@@ -1,0 +1,40 @@
+name: Build and release exe
+
+# Chạy tự động mỗi khi bạn đẩy 1 git tag dạng v1.2.3 lên - KHÔNG chạy khi
+# push code thường (push lên nhánh main không tự build, phải tag mới build).
+on:
+  push:
+    tags:
+      - "v*"
+
+# Cho phép workflow tạo Release (mặc định GITHUB_TOKEN chỉ có quyền đọc).
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest  # bắt buộc Windows - build .exe cho Windows
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build exe
+        run: >
+          pyinstaller --onefile --windowed --name AutoCraftTool
+          --hidden-import pynput.keyboard._win32
+          --hidden-import pynput.mouse._win32
+          main.py
+
+      - name: Create GitHub Release + đính kèm exe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist/AutoCraftTool.exe --title "${{ github.ref_name }}" --generate-notes

@@ -1,0 +1,15 @@
+# Config/profile cá nhân - dữ liệu người dùng, không phải code
+configs/
+
+# Output của PyInstaller
+build/
+dist/
+*.spec
+
+# File tạm do core/updater.py tự tạo lúc tự cập nhật
+_update_*.exe
+_apply_update.bat
+
+# Python
+__pycache__/
+*.pyc
