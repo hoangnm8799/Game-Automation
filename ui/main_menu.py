@@ -7,8 +7,11 @@ feature classes by name. Add a feature module (with @register) and it
 shows up here automatically.
 """
 
+import queue
+import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
+from typing import Optional
 
 from core import updater
 from core.app_context import AppContext
@@ -83,9 +86,109 @@ class MainMenu(tk.Tk):
         self.update_btn.config(state="disabled", text="Đang tải bản mới...")
         self.update_idletasks()
         try:
-            updater.apply_update(info)  # exits this process itself on success
+            self._download_update(info)
         except Exception as e:
             messagebox.showerror("Lỗi", f"Cập nhật thất bại:\n{e}")
+            self.update_btn.config(state="normal", text="Kiểm tra update")
+
+    def _download_update(self, info: updater.UpdateInfo) -> None:
+        """Download in a worker so the progress window remains responsive."""
+        dialog = tk.Toplevel(self)
+        dialog.title("Đang cập nhật")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.protocol("WM_DELETE_WINDOW", lambda: None)
+
+        body = ttk.Frame(dialog, padding=16)
+        body.pack(fill="both", expand=True)
+        status = ttk.Label(body, text=f"Đang tải bản {info.version}...")
+        status.pack(anchor="w")
+        progress = ttk.Progressbar(body, mode="indeterminate", length=300)
+        progress.pack(fill="x", pady=(10, 6))
+        progress.start(10)
+        ttk.Label(
+            body,
+            text="Cửa sổ sẽ đóng và mở lại sau khi tải xong.",
+            foreground="gray",
+        ).pack(anchor="w")
+
+        events: queue.Queue = queue.Queue()
+
+        def report_progress(downloaded: int, total: Optional[int]) -> None:
+            events.put(("progress", downloaded, total))
+
+        def download() -> None:
+            try:
+                downloaded_exe = updater.download_update(info, report_progress)
+            except Exception as error:
+                events.put(("error", error))
+            else:
+                events.put(("complete", downloaded_exe))
+
+        threading.Thread(target=download, name="update-download", daemon=True).start()
+        self._poll_update_events(info, dialog, status, progress, events, False)
+
+    def _poll_update_events(
+        self,
+        info: updater.UpdateInfo,
+        dialog: tk.Toplevel,
+        status: ttk.Label,
+        progress: ttk.Progressbar,
+        events: queue.Queue,
+        has_total: bool,
+    ) -> None:
+        try:
+            while True:
+                kind, *data = events.get_nowait()
+                if kind == "progress":
+                    downloaded, total = data
+                    if total:
+                        if not has_total:
+                            progress.stop()
+                            progress.config(mode="determinate", maximum=100)
+                            has_total = True
+                        percent = downloaded / total * 100
+                        progress["value"] = percent
+                        status.config(
+                            text=(
+                                f"Đang tải bản {info.version}: {percent:.0f}% "
+                                f"({downloaded / 1024 / 1024:.1f}/{total / 1024 / 1024:.1f} MB)"
+                            )
+                        )
+                elif kind == "error":
+                    dialog.destroy()
+                    messagebox.showerror("Lỗi", f"Cập nhật thất bại:\n{data[0]}")
+                    self.update_btn.config(state="normal", text="Kiểm tra update")
+                    return
+                elif kind == "complete":
+                    progress.stop()
+                    progress.config(mode="determinate", maximum=100, value=100)
+                    status.config(text="Đã tải xong. Đang khởi động lại...")
+                    self.after(500, self._install_update, info, data[0], dialog)
+                    return
+        except queue.Empty:
+            pass
+
+        self.after(
+            75,
+            self._poll_update_events,
+            info,
+            dialog,
+            status,
+            progress,
+            events,
+            has_total,
+        )
+
+    def _install_update(
+        self, info: updater.UpdateInfo, downloaded_exe: object, dialog: tk.Toplevel
+    ) -> None:
+        try:
+            updater.apply_update(info, downloaded_exe)
+        except Exception as error:
+            dialog.destroy()
+            messagebox.showerror("Lỗi", f"Cập nhật thất bại:\n{error}")
             self.update_btn.config(state="normal", text="Kiểm tra update")
 
     def _on_close(self) -> None:

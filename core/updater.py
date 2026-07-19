@@ -30,7 +30,7 @@ import sys
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from core.version import APP_VERSION
 
@@ -56,6 +56,9 @@ class UpdateInfo:
     asset_download_url: str
     asset_name: str
     notes: str = ""
+
+
+DownloadProgress = Callable[[int, Optional[int]], None]
 
 
 def _parse_version(v: str) -> tuple:
@@ -102,17 +105,50 @@ def check_for_update() -> Optional[UpdateInfo]:
     )
 
 
-def _download_asset(url: str, dest: Path) -> None:
+def _download_asset(
+    url: str, dest: Path, on_progress: Optional[DownloadProgress] = None
+) -> None:
     req = urllib.request.Request(url, headers=_headers("application/octet-stream"))
     with urllib.request.urlopen(req, timeout=120) as resp, open(dest, "wb") as f:
+        try:
+            total_bytes = int(resp.headers.get("Content-Length", ""))
+        except ValueError:
+            total_bytes = None
+        if total_bytes is not None and total_bytes <= 0:
+            total_bytes = None
+
+        downloaded_bytes = 0
         while True:
             chunk = resp.read(1024 * 256)
             if not chunk:
                 break
             f.write(chunk)
+            downloaded_bytes += len(chunk)
+            if on_progress is not None:
+                on_progress(downloaded_bytes, total_bytes)
 
 
-def apply_update(info: UpdateInfo) -> None:
+def download_update(
+    info: UpdateInfo, on_progress: Optional[DownloadProgress] = None
+) -> Path:
+    """Download a release next to the running exe without restarting it."""
+    if not getattr(sys, "frozen", False):
+        raise RuntimeError(
+            "Tự cập nhật chỉ chạy được từ bản .exe đã đóng gói, "
+            "không chạy từ `python main.py`."
+        )
+
+    current_exe = Path(sys.executable).resolve()
+    new_exe = current_exe.with_name(f"_update_{info.asset_name}")
+    try:
+        _download_asset(info.asset_download_url, new_exe, on_progress)
+    except Exception:
+        new_exe.unlink(missing_ok=True)
+        raise
+    return new_exe
+
+
+def apply_update(info: UpdateInfo, downloaded_exe: Optional[Path] = None) -> None:
     """Downloads the new exe next to the current one, spawns a detached
     helper that waits for this process to exit and swaps the files, then
     exits this process. Caller should warn the user the app is about to
@@ -121,8 +157,7 @@ def apply_update(info: UpdateInfo) -> None:
         raise RuntimeError("apply_update() chỉ chạy được từ bản .exe đã đóng gói, không chạy từ `python main.py`")
 
     current_exe = Path(sys.executable).resolve()
-    new_exe = current_exe.with_name(f"_update_{info.asset_name}")
-    _download_asset(info.asset_download_url, new_exe)
+    new_exe = downloaded_exe or download_update(info)
 
     bat_path = current_exe.with_name("_apply_update.bat")
     # A fixed delay is unreliable: PyInstaller still has to tear down its
