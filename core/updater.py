@@ -24,6 +24,7 @@ raise.
 """
 
 import json
+import os
 import subprocess
 import sys
 import urllib.request
@@ -124,12 +125,31 @@ def apply_update(info: UpdateInfo) -> None:
     _download_asset(info.asset_download_url, new_exe)
 
     bat_path = current_exe.with_name("_apply_update.bat")
+    # A fixed delay is unreliable: PyInstaller still has to tear down its
+    # bootloader and remove its temporary _MEI directory after sys.exit().
+    # Wait for this exact process instead, then retry the move in case the
+    # bootloader holds the executable for a moment longer.
+    current_pid = os.getpid()
     bat_path.write_text(
         "@echo off\r\n"
-        "timeout /t 2 /nobreak > NUL\r\n"
-        f'move /y "{new_exe}" "{current_exe}"\r\n'
-        f'start "" "{current_exe}"\r\n'
-        f'del "%~f0"\r\n',
+        "setlocal EnableExtensions\r\n"
+        f'set "UPDATE_PID={current_pid}"\r\n'
+        f'set "NEW_EXE={new_exe}"\r\n'
+        f'set "CURRENT_EXE={current_exe}"\r\n'
+        ":wait_for_exit\r\n"
+        'tasklist /FI "PID eq %UPDATE_PID%" /NH | findstr /C:"%UPDATE_PID%" > NUL\r\n'
+        "if not errorlevel 1 (\r\n"
+        "  timeout /t 1 /nobreak > NUL\r\n"
+        "  goto wait_for_exit\r\n"
+        ")\r\n"
+        ":replace_file\r\n"
+        'move /y "%NEW_EXE%" "%CURRENT_EXE%" > NUL\r\n'
+        "if errorlevel 1 (\r\n"
+        "  timeout /t 1 /nobreak > NUL\r\n"
+        "  goto replace_file\r\n"
+        ")\r\n"
+        'start "" "%CURRENT_EXE%"\r\n'
+        'del "%~f0"\r\n',
         encoding="utf-8",
     )
     subprocess.Popen(
