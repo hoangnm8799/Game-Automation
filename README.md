@@ -116,7 +116,7 @@ repo public).
 4. **Build file exe** - 2 cách, chọn 1:
 
    **Cách A - build tay trên máy (đơn giản, khuyên dùng cho lần đầu):**
-   double-click `build.bat` → ra file `dist\AutoCraftTool.exe` → vào repo
+   Chạy `build.bat 1.0.0` → ra file `dist\AutoCraftTool.exe` → vào repo
    trên GitHub → **Releases** → **Create a new release** → **Tag**: gõ
    `v1.0.0` (khớp `core/version.py`) → kéo thả file exe vào ô đính kèm →
    **Publish release**.
@@ -147,12 +147,12 @@ repo public).
 ### Từ lần sau (mỗi khi có bản mới)
 
 1. Sửa code.
-2. Tăng số trong `core/version.py`, ví dụ `"1.0.0"` → `"1.1.0"` (bắt buộc
-   - đây là version app tự so sánh, không phải git tag; quên bước này
-   thì app luôn nghĩ vẫn có update dù đã tải bản mới nhất rồi).
-3. Build lại bằng cách A hoặc B ở trên, tag/release tăng theo, ví dụ
+2. Build lại bằng cách A hoặc B ở trên, tag/release tăng theo, ví dụ
    `v1.1.0`.
-4. Mọi người mở app, bấm **"Kiểm tra update"** ở cuối menu chính, app tự
+   Git tag là nguồn version duy nhất: workflow tự nhúng `1.1.0` vào file
+   `.exe`; không cần sửa `core/version.py`. Nếu build tay, chạy
+   `build.bat 1.1.0`.
+3. Mọi người mở app, bấm **"Kiểm tra update"** ở cuối menu chính, app tự
    tải và tự khởi động lại bản mới.
 
 ## Cấu trúc
@@ -166,7 +166,7 @@ core/                    # dùng chung cho MỌI feature
   capture.py                  # CaptureController - hover+hotkey capture, thread-safe
   app_context.py                # bundle root+hotkeys+capture, truyền cho feature
   config_store.py                # save/load/list/delete profile JSON - biết cả path khi đóng gói .exe
-  version.py                      # APP_VERSION - tăng trước mỗi lần build release mới
+  version.py                      # đọc version được sinh tự động từ Git tag lúc build
   updater.py                       # check/tải/tự thay bản mới từ GitHub Releases
 
 features/

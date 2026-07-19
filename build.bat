@@ -1,7 +1,11 @@
 @echo off
 REM build.bat - dong goi thanh 1 file .exe duy nhat, khong hien console.
-REM Chay lai file nay moi lan muon build ban moi (nho tang APP_VERSION
-REM trong core/version.py TRUOC khi build).
+REM Dung: build.bat 1.2.3
+REM Neu khong truyen version, ban build local se la 0.0.0-dev.
+
+set "APP_VERSION=%~1"
+if "%APP_VERSION%"=="" set "APP_VERSION=0.0.0-dev"
+> core\_build_version.py echo APP_VERSION = "%APP_VERSION%"
 
 pip install pyinstaller
 
@@ -9,6 +13,8 @@ pyinstaller --onefile --windowed --name AutoCraftTool ^
   --hidden-import pynput.keyboard._win32 ^
   --hidden-import pynput.mouse._win32 ^
   main.py
+
+del core\_build_version.py 2>NUL
 
 echo.
 echo Xong - file exe nam o dist\AutoCraftTool.exe

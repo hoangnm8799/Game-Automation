@@ -10,6 +10,9 @@ dist/
 _update_*.exe
 _apply_update.bat
 
+# Sinh tu git tag trong luc dong goi release
+core/_build_version.py
+
 # Python
 __pycache__/
 *.pyc
