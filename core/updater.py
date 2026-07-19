@@ -42,6 +42,9 @@ GITHUB_REPO = "YOUR_REPO_NAME"
 GITHUB_TOKEN = ""
 # ------------------------------------------------------------------------
 
+GITHUB_OWNER = "hoangnm8799"
+GITHUB_REPO = "Game-Automation"
+
 _API_BASE = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
 _TIMEOUT = 15
 
