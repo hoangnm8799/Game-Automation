@@ -18,8 +18,9 @@ from core.position import Position
 # after Ctrl+C we wait until fresh clipboard text arrives instead of using a
 # stale value or immediately assuming an empty result. This makes normal
 # crafts much faster without skipping a rule check.
-CLICK_DELAY = 0.03
-COPY_READY_TIMEOUT = 0.35
+CLICK_DELAY = 0.04
+COPY_READY_TIMEOUT = 1.0
+COPY_RETRY_AFTER = 0.25
 COPY_POLL_INTERVAL = 0.01
 
 pyautogui.PAUSE = 0          # we manage our own delays explicitly below
@@ -62,10 +63,14 @@ def copy_text_at(pos: Position) -> str:
     pyperclip.copy("")  # clear first so a stale value can't cause a false match
     pyautogui.hotkey("ctrl", "c")
     deadline = time.monotonic() + COPY_READY_TIMEOUT
+    retry_at = time.monotonic() + COPY_RETRY_AFTER
     while time.monotonic() < deadline:
         text = pyperclip.paste()
         if text:
             return text
+        if time.monotonic() >= retry_at:
+            pyautogui.hotkey("ctrl", "c")
+            retry_at = deadline
         time.sleep(COPY_POLL_INTERVAL)
     raise ClipboardReadError(
         "Không đọc được text mới từ clipboard; craft đã dừng để tránh check sai."
